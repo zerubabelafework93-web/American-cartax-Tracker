@@ -1,10 +1,10 @@
-# American Car Tax Checker
+# American Car Tax Tracker
 
 A small web app that helps people find out whether their vehicle meets the **vehicle requirements** for the federal car loan interest deduction created by the One Big Beautiful Bill Act (Internal Revenue Code § 163(h)(4)).
 
 Enter a 17-character VIN, and the app decodes it with the official NHTSA database, checks the vehicle against the rules, and asks a few follow-up questions for the things a VIN can't tell you.
 
-**Live demo:** `https://zerubabelafework93-web.github.io/american-car-tax-checker/`
+**Live demo:** `https://zerubabelafework93-web.github.io/American-cartax-Tracker/`
 
 > This is a preliminary information tool, not tax advice. See [Limitations](#limitations).
 
@@ -64,19 +64,19 @@ Try a few VINs: one from a U.S.-built vehicle and one from an imported vehicle, 
 
 ## Deploy with GitHub Pages
 
-1. Create a new repository on GitHub (for example `american-car-tax-checker`)
+1. Create a new repository on GitHub (for example `american-car-tax-Tracker`)
 2. Upload `index.html` and `README.md`, or from the project folder run:
    ```bash
    git init
    git add .
    git commit -m "Initial commit"
    git branch -M main
-   git remote add origin https://github.com/zerubabelafework93-web/american-car-tax-checker.git
+   git remote add origin https://github.com/zerubabelafework93-web/American-cartax-Tracker.git
    git push -u origin main
    ```
 3. In the repo, go to **Settings → Pages**
 4. Under **Build and deployment**, set **Source** to **Deploy from a branch**, choose **main** and **/ (root)**, then save
-5. After a minute or two the site is live at `https://zerubabelafework93-web.github.io/american-car-tax-checker/`
+5. After a minute or two the site is live at `https://zerubabelafework93-web.github.io/American-cartax-Tracker/`
 
 ## Limitations
 
