@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- This viewport tag is what makes the page scale properly on phones and tablets. -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>American Car Tax Checker</title>
+<meta name="description" content="Check whether a vehicle meets the vehicle requirements for the federal car loan interest deduction.">
+<style>
+  /* ---------- Colors ----------
+     Everything is defined once here so the whole look can be changed in one place.
+     Green / red / yellow match the three result states: met, not met, can't tell. */
+  :root{
+    --bg:#f6f7f9; --card:#fff; --text:#1b2430; --muted:#5b6675; --line:#e3e7ec; --brand:#1f4fd8;
+    --green:#137333; --green-bg:#e6f4ea; --red:#b3261e; --red-bg:#fce8e6; --yellow:#8a5a00; --yellow-bg:#fff4d6;
+  }
+
+  /* ---------- Base ---------- */
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+
+  /* The content column is capped at 720px so lines stay readable on big screens.
+     The padding also respects the notch / rounded corners on newer phones. */
+  main{
+    max-width:720px;margin:0 auto;
+    padding:24px max(16px, env(safe-area-inset-right)) 48px max(16px, env(safe-area-inset-left));
+  }
+  .brand{font-size:.85rem;font-weight:600;color:var(--brand);letter-spacing:.04em;text-transform:uppercase}
+  h1{font-size:1.9rem;line-height:1.2;margin:.3rem 0 .6rem}
+  p.lead{color:var(--muted);margin:0 0 20px}
+
+  /* ---------- Cards and form controls ---------- */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-top:16px}
+  label{display:block;font-weight:600;margin-bottom:6px}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+
+  /* Inputs stay at 16px or larger on purpose: smaller text makes iPhones zoom in
+     when you tap the field, which feels broken. Padding keeps tap targets roomy. */
+  input[type=text]{flex:1 1 240px;font:inherit;font-size:1.05rem;letter-spacing:.06em;text-transform:uppercase;padding:12px;border:1px solid #b9c2cd;border-radius:8px}
+  button{font:inherit;font-weight:600;padding:12px 20px;min-height:48px;border:0;border-radius:8px;background:var(--brand);color:#fff;cursor:pointer}
+  button:disabled{opacity:.6;cursor:wait}
+  select{font:inherit;width:100%;padding:12px;min-height:48px;border:1px solid #b9c2cd;border-radius:8px;background:#fff}
+
+  /* Keyboard users get a clear outline when they tab to something. */
+  input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid #8fb0ff;outline-offset:2px}
+
+  .msg{margin-top:10px;font-size:.95rem}
+  .err{color:var(--red)}
+  .hint{color:var(--muted);font-size:.85rem;margin-top:6px}
+
+  /* ---------- Vehicle details (label / value pairs) ---------- */
+  dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 16px;margin:12px 0}
+  dt{color:var(--muted)} dd{margin:0;font-weight:600;overflow-wrap:anywhere}
+  h2{font-size:1.25rem;margin:0}
+  h3{font-size:1rem;margin:20px 0 8px}
+  .q{margin-bottom:12px}
+
+  /* ---------- Results ---------- */
+  .overall{border-radius:10px;padding:14px;margin:16px 0}
+  .overall strong{display:block;font-size:1.2rem}
+  .green{background:var(--green-bg);color:var(--green)}
+  .red{background:var(--red-bg);color:var(--red)}
+  .yellow{background:var(--yellow-bg);color:var(--yellow)}
+
+  /* Each requirement is a row with a colored stripe on the left. The words
+     "Met / Not met / Unable to determine" are always shown too, so the page
+     doesn't rely on color alone (helps color-blind users). */
+  ul.checks{list-style:none;margin:0;padding:0}
+  ul.checks li{border:1px solid var(--line);border-left-width:5px;border-radius:8px;padding:10px 12px;margin-bottom:8px}
+  ul.checks li.green{border-left-color:var(--green);background:#fff;color:var(--text)}
+  ul.checks li.red{border-left-color:var(--red);background:#fff;color:var(--text)}
+  ul.checks li.yellow{border-left-color:#e0a800;background:#fff;color:var(--text)}
+  .tag{display:inline-block;font-size:.75rem;font-weight:700;padding:2px 8px;border-radius:99px;margin-left:6px;vertical-align:middle}
+  .tag.green{background:var(--green-bg);color:var(--green)} .tag.red{background:var(--red-bg);color:var(--red)} .tag.yellow{background:var(--yellow-bg);color:var(--yellow)}
+  .note{display:block;color:var(--muted);font-size:.9rem;margin-top:2px}
+  .disclaimer{font-size:.85rem;color:var(--muted);border-top:1px solid var(--line);margin-top:20px;padding-top:12px}
+  footer{margin-top:24px;font-size:.9rem;color:var(--muted)}
+  footer a{color:var(--brand)}
+  [hidden]{display:none!important}
+
+  /* Phones 
+     Adjust the layout for smaller screens */
+  @media (max-width:520px){
+    h1{font-size:1.5rem}
+    .card{padding:14px}
+    button{width:100%}
+    dl{grid-template-columns:1fr;gap:0}
+    dt{margin-top:10px;font-size:.85rem}
+  }
+
+  /* Tablets
+     A little more breathing room once there's space for it. */
+  @media (min-width:768px){
+    main{padding-top:40px}
+    h1{font-size:2.2rem}
+    .card{padding:24px}
+  }
+</style>
+</head>
+<body>
+<main>
+  <div class="brand">American Car Tax Checker</div>
+  <h1>Does Your Car Qualify for the Tax Deduction?</h1>
+  <p class="lead">Enter your vehicle's 17-character VIN to look up its details through the NHTSA database. The checker then reviews the vehicle requirements for the federal car loan interest deduction (up to $10,000 a year for tax years 2025–2028). A VIN cannot confirm everything, so you'll answer a few questions too.</p>
+
+  <!-- Step 1: the VIN box -->
+  <div class="card">
+    <label for="vin">Vehicle Identification Number (VIN)</label>
+    <div class="row">
+      <input id="vin" type="text" maxlength="17" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="search" placeholder="17 characters" aria-describedby="vinMsg">
+      <button id="go" type="button">Check Eligibility</button>
+    </div>
+    <!-- role="status" lets screen readers announce errors and loading messages. -->
+    <div id="vinMsg" class="msg" role="status" aria-live="polite"></div>
+    <div class="hint">VINs do not use the letters I, O, or Q. This page does not save your VIN.</div>
+  </div>
+
+  <!-- Step 2: results. Hidden until a VIN has been decoded successfully. -->
+  <div id="result" class="card" hidden>
+    <h2 id="title"></h2>
+    <dl id="facts"></dl>
+
+    <!-- These are the things a VIN can't tell us, so we ask. -->
+    <h3>A few questions a VIN can't answer</h3>
+    <div class="q"><label for="qNew">Did you buy it new, and are you its first owner?</label>
+      <select id="qNew"><option value="">Select…</option><option value="yes">Yes</option><option value="no">No (used, or previously owned)</option></select></div>
+    <div class="q"><label for="qPersonal">Is it used mainly for personal purposes (not business or fleet)?</label>
+      <select id="qPersonal"><option value="">Select…</option><option value="yes">Yes</option><option value="no">No</option></select></div>
+    <div class="q"><label for="qLoan">Is the loan from after Dec 31, 2024, secured by a first lien on the vehicle, and a loan rather than a lease?</label>
+      <select id="qLoan"><option value="">Select…</option><option value="yes">Yes</option><option value="no">No</option></select></div>
+    <div class="q"><label for="qIncome">Your modified adjusted gross income (MAGI)</label>
+      <select id="qIncome"><option value="">Select…</option>
+        <option value="low">$100,000 or less ($200,000 or less if married filing jointly)</option>
+        <option value="phase">Over that, up to $150,000 ($250,000 joint) — deduction reduced</option>
+        <option value="high">Over $150,000 ($250,000 joint)</option>
+        <option value="unsure">Not sure</option></select></div>
+
+    <div id="overall" class="overall"></div>
+    <ul id="checks" class="checks"></ul>
+
+    <p class="disclaimer">This tool gives preliminary information only and is not tax advice or a guarantee of eligibility. Vehicle data comes from the NHTSA VIN decoder and can be incomplete. Confirm final assembly location on the vehicle's window sticker, and check with the IRS or a tax professional.</p>
+  </div>
+
+  <footer>
+    <strong>Official sources</strong>
+    <ul>
+      <li><a href="https://www.irs.gov/newsroom/one-big-beautiful-bill-act-tax-deductions-for-working-americans-and-seniors" target="_blank" rel="noopener">IRS: One Big Beautiful Bill Act tax deductions</a></li>
+      <li><a href="https://www.irs.gov/pub/irs-drop/n-25-57.pdf" target="_blank" rel="noopener">IRS Notice 2025-57 (car loan interest reporting)</a></li>
+      <li><a href="https://www.law.cornell.edu/uscode/text/26/163" target="_blank" rel="noopener">26 U.S.C. § 163(h)(4) (statute)</a></li>
+      <li><a href="https://www.nhtsa.gov/vin-decoder" target="_blank" rel="noopener">NHTSA VIN decoder</a></li>
+    </ul>
+  </footer>
+</main>
+
+<script>
+/*
+  How this works, start to finish:
+    1. The user types a VIN and clicks the button.
+    2. We check the format ourselves first so we don't waste a network call.
+    3. We ask NHTSA's free VIN decoder what the car is.
+    4. We run a handful of checks on what came back (assembly country, vehicle
+       type, weight) and combine them with the user's answers to the questions
+       a VIN can't answer.
+    5. We show an overall result plus one row per requirement.
+
+  There's no backend and no database. Everything runs in the browser, and the
+  VIN is never saved anywhere.
+*/
+(function () {
+  // Shortcut for sellecting elemnts by ID
+  var $ = function (id) { return document.getElementById(id); };
+
+  // VINs are 17 characters; I, O, and Q are excluded by the standard
+  // (they look too much like 1 and 0).
+  var VIN_RE = /^[A-HJ-NPR-Z0-9]{17}$/;
+
+  // Keep the decoded response in memory for this page only. Nothing is saved.
+  var vehicle = null;
+
+  // Display a message below the VIN field, with optional error styling. 
+  function setMsg(text, isErr) {
+    var el = $('vinMsg');
+    el.textContent = text || '';
+    el.className = 'msg' + (isErr ? ' err' : '');
+  }
+
+  // Ask NHTSA to decode the VIN before running the eligibility checks.
+  async function lookup() {
+    var vin = $('vin').value.trim().toUpperCase();
+    $('vin').value = vin;
+    $('result').hidden = true;
+
+    // Validate the vin before making an API request
+    if (vin.length !== 17) return setMsg('A VIN must be exactly 17 characters (you entered ' + vin.length + ').', true);
+    if (!VIN_RE.test(vin)) return setMsg('VINs use only letters and numbers, and never I, O or Q.', true);
+
+    // Prevent another lookup while this request is running. 
+    $('go').disabled = true;
+    setMsg('Looking up your VIN…');
+
+    // Stop the request if NHTSA takes longer than 15 seconds. 
+    var ctrl = new AbortController();
+    var timer = setTimeout(function () { ctrl.abort(); }, 15000);
+
+    try {
+      var res = await fetch('https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/' + encodeURIComponent(vin) + '?format=json', { signal: ctrl.signal });
+      if (!res.ok) throw new Error('NHTSA returned status ' + res.status);
+      var data = await res.json();
+
+      // Get the first result returned by the NHSTSA API. 
+      var r = data && data.Results && data.Results[0];
+      if (!r) throw new Error('Unexpected response from NHTSA');
+
+      // A VIN with the right format can still be fake. NHTSA returns an empty
+      // Make in that case, so we treat that as "couldn't decode".
+      if (!r.Make) {
+        return setMsg("NHTSA couldn't decode this VIN. Double-check it for typos." + (r.ErrorText ? ' (' + r.ErrorText + ')' : ''), true);
+      }
+      vehicle = r;
+      setMsg('');
+      show();
+    } catch (e) {
+      // AbortError means our 15-second timer fired. Anything else is a network or server problem.
+      setMsg(e.name === 'AbortError' ? 'The lookup timed out. Please try again.' : "Couldn't reach the NHTSA VIN service. Check your connection and try again.", true);
+    } finally {
+      // Runs whether it worked or not: stop the timer and re-enable the button.
+      clearTimeout(timer);
+      $('go').disabled = false;
+    }
+  }
+
+  // Convert missing values to an empty string and trim whitespace. 
+  function clean(v) { return (v || '').toString().trim(); }
+
+  // Fills in the vehicle details and reveals the results card.
+  function show() {
+    var r = vehicle;
+    var make = clean(r.Make), model = clean(r.Model), year = clean(r.ModelYear);
+    $('title').textContent = [year, make, model].filter(Boolean).join(' ');
+
+    // Label / value pairs for the details list. Empty values show "Not available"
+    // so we never pretend to know something NHTSA didn't tell us.
+    var rows = [
+      ['Make', make], ['Model', model], ['Model year', year],
+      ['Final assembly country', clean(r.PlantCountry)],
+      ['Assembly plant', [clean(r.PlantCity), clean(r.PlantState)].filter(Boolean).join(', ')],
+      ['Vehicle type', clean(r.VehicleType)], ['Body class', clean(r.BodyClass)],
+      ['Weight rating (GVWR)', clean(r.GVWR)]
+    ];
+    var dl = $('facts');
+    dl.textContent = '';
+    rows.forEach(function (row) {
+      var dt = document.createElement('dt'); dt.textContent = row[0];
+      var dd = document.createElement('dd'); dd.textContent = row[1] || 'Not available';
+      dl.appendChild(dt); dl.appendChild(dd);
+    });
+    $('result').hidden = false;
+    evaluate();
+    $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  /* ---------- The individual checks ----------
+     Each check returns the same shape: { s: status, t: title, n: note }
+       s = 'met' | 'not' | 'unk'  (unk = unknown / can't tell)
+     Missing data is marked unknown rather than treated as an automatic failure,
+     because "we don't know" and "it doesn't qualify" are different answers. */
+
+  // The law says final assembly has to be in the U.S. This is NOT the same as
+  // the brand's home country, so we use the plant country NHTSA reports.
+  function checkAssembly(r) {
+    var pc = clean(r.PlantCountry).toUpperCase();
+    if (!pc) return { s: 'unk', t: 'Final assembly in the United States', n: 'NHTSA has no plant country for this VIN. Check the window sticker.' };
+    if (pc.indexOf('UNITED STATES') !== -1) return { s: 'met', t: 'Final assembly in the United States', n: 'Plant country: ' + clean(r.PlantCountry) + '.' };
+    return { s: 'not', t: 'Final assembly in the United States', n: 'Plant country: ' + clean(r.PlantCountry) + '.' };
+  }
+
+  // The deduction covers cars, minivans, vans, SUVs, pickups and motorcycles.
+  // NHTSA's "vehicle type" is broad, so trucks need a second look at the body class.
+  function checkType(r) {
+    var vt = clean(r.VehicleType).toUpperCase(), bc = clean(r.BodyClass).toUpperCase();
+    var t = 'Eligible vehicle type (car, minivan, van, SUV, pickup or motorcycle)';
+    if (!vt) return { s: 'unk', t: t, n: 'Vehicle type not reported.' };
+    if (vt.indexOf('PASSENGER CAR') !== -1 || vt.indexOf('MULTIPURPOSE') !== -1 || vt.indexOf('MOTORCYCLE') !== -1)
+      return { s: 'met', t: t, n: 'Decoded as: ' + clean(r.VehicleType) + '.' };
+    // "Truck" could be a pickup (fine) or a commercial truck (not fine).
+    // Only call it a match if the body class says pickup or van; otherwise stay unsure.
+    if (vt.indexOf('TRUCK') !== -1) {
+      if (bc.indexOf('PICKUP') !== -1 || bc.indexOf('VAN') !== -1)
+        return { s: 'met', t: t, n: 'Decoded as: ' + clean(r.BodyClass) + '.' };
+      return { s: 'unk', t: t, n: 'Decoded as a truck (' + (clean(r.BodyClass) || 'body class unknown') + '). Only pickups and vans count.' };
+    }
+    if (vt.indexOf('BUS') !== -1 || vt.indexOf('TRAILER') !== -1 || vt.indexOf('LOW SPEED') !== -1 || vt.indexOf('OFF ROAD') !== -1)
+      return { s: 'not', t: t, n: 'Decoded as: ' + clean(r.VehicleType) + '.' };
+    return { s: 'unk', t: t, n: 'Decoded as: ' + clean(r.VehicleType) + '. Can\'t confirm.' };
+  }
+
+  // The weight limit is "under 14,000 lb". NHTSA gives a range like
+  // "Class 2E: 6,001 - 7,000 lb (...)", so we pull the two numbers out of that text.
+  function checkWeight(r) {
+    var g = clean(r.GVWR), t = 'Gross vehicle weight rating under 14,000 lb';
+    if (!g) return { s: 'unk', t: t, n: 'NHTSA has no weight rating for this VIN. Check the door-jamb label.' };
+    var m = g.match(/([\d,]+)\s*-\s*([\d,]+)\s*lb/i);
+    if (!m) return { s: 'unk', t: t, n: 'Reported as "' + g + '". Could not read a weight range.' };
+    var lo = parseInt(m[1].replace(/,/g, ''), 10), hi = parseInt(m[2].replace(/,/g, ''), 10);
+    if (hi < 14000) return { s: 'met', t: t, n: 'Reported range: ' + lo.toLocaleString() + '–' + hi.toLocaleString() + ' lb.' };
+    if (lo >= 14000) return { s: 'not', t: t, n: 'Reported range: ' + lo.toLocaleString() + '–' + hi.toLocaleString() + ' lb.' };
+    // The range straddles 14,000, so the real number could land on either side.
+    return { s: 'unk', t: t, n: 'Reported range (' + lo.toLocaleString() + '–' + hi.toLocaleString() + ' lb) touches 14,000 lb. Check the exact GVWR on the door-jamb label.' };
+  }
+
+  // Turns a Yes/No dropdown into a check result.
+  // Keep unanswered questions inconclusive until the user makes a selection.
+  function yn(id, t, yesNote, noNote) {
+    var v = $(id).value;
+    if (v === 'yes') return { s: 'met', t: t, n: yesNote };
+    if (v === 'no') return { s: 'not', t: t, n: noNote };
+    return { s: 'unk', t: t, n: 'Unable to determine. Answer the question above.' };
+  }
+
+  // Income: the deduction shrinks by $200 per $1,000 of income over the threshold
+  // and hits zero $50,000 above it. "In the phase-out range" still counts as met
+  // because the person can still claim a reduced deduction.
+  function checkIncome() {
+    var v = $('qIncome').value, t = 'Income within the limits';
+    if (v === 'low') return { s: 'met', t: t, n: 'Below the phase-out threshold.' };
+    if (v === 'phase') return { s: 'met', t: t, n: 'The deduction is reduced by $200 for every $1,000 of MAGI over $100,000 ($200,000 joint), and fully phased out at $150,000 ($250,000 joint).' };
+    if (v === 'high') return { s: 'not', t: t, n: 'The deduction is fully phased out at this income.' };
+    return { s: 'unk', t: t, n: 'Unable to determine. Answer the question above.' };
+  }
+
+  /* ---------- Showing the results ---------- */
+
+  // Plain-English label and CSS class for each status.
+  var LABEL = { met: 'Met', not: 'Not met', unk: 'Unable to determine' };
+  var CLS = { met: 'green', not: 'red', unk: 'yellow' };
+
+  // Builds the list of requirement rows. We use textContent (not innerHTML)
+  // everywhere so nothing from the API can ever be treated as HTML.
+  function renderList(list) {
+    var ul = $('checks');
+    ul.textContent = '';
+    list.forEach(function (c) {
+      var li = document.createElement('li');
+      li.className = CLS[c.s];
+      var b = document.createElement('strong'); b.textContent = c.t;
+      var tag = document.createElement('span'); tag.className = 'tag ' + CLS[c.s]; tag.textContent = LABEL[c.s];
+      var n = document.createElement('span'); n.className = 'note'; n.textContent = c.n;
+      li.appendChild(b); li.appendChild(tag); li.appendChild(n);
+      ul.appendChild(li);
+    });
+  }
+
+  // Combine the VIN-based checks with the answers the VIN cannot provide.
+  // This runs once after the lookup, then again every time a dropdown changes.
+  function evaluate() {
+    if (!vehicle) return;
+    var vehicleChecks = [checkAssembly(vehicle), checkType(vehicle), checkWeight(vehicle)];
+    var otherChecks = [
+      yn('qNew', 'New vehicle, original use begins with you', 'You reported buying it new.', 'Only new vehicles qualify.'),
+      yn('qPersonal', 'Primarily personal use', 'You reported mainly personal use.', 'Business or fleet vehicles do not qualify.'),
+      yn('qLoan', 'Qualifying loan (after 2024, first lien, not a lease)', 'You reported the loan meets these terms.', 'The loan must be taken out after Dec 31, 2024, be secured by a first lien, and not be a lease.'),
+      checkIncome()
+    ];
+    var all = vehicleChecks.concat(otherChecks);
+
+    // One failed requirement is enough to flag the result; unknowns stay visible.
+    var anyNot = all.some(function (c) { return c.s === 'not'; });
+    var anyUnk = all.some(function (c) { return c.s === 'unk'; });
+    // We also track the vehicle checks separately, because "the car is fine" and
+    // "the whole deduction works for you" are different questions.
+    var vehicleNot = vehicleChecks.some(function (c) { return c.s === 'not'; });
+    var vehicleUnk = vehicleChecks.some(function (c) { return c.s === 'unk'; });
+
+    // Pick the overall headline. Order matters: any "not met" wins, then any
+    // "unknown", and only when everything is met do we say "Appears eligible".
+    var title, text, cls;
+    if (anyNot) {
+      cls = 'red'; title = 'Appears ineligible';
+      text = vehicleNot ? 'The vehicle itself fails at least one requirement.' : 'The vehicle checks look fine, but at least one of your answers does not meet a requirement.';
+    } else if (anyUnk) {
+      cls = 'yellow'; title = 'More information required';
+      text = vehicleUnk ? 'We could not confirm every vehicle requirement from the VIN alone. ' : 'The vehicle requirements look met. ';
+      text += 'Answer the remaining questions to finish the check.';
+    } else {
+      cls = 'green'; title = 'Appears eligible';
+      text = 'Every requirement we can check appears to be met. Final eligibility depends on your actual return.';
+    }
+
+    var vehicleSummary = vehicleNot ? 'Vehicle requirements: not met.' : vehicleUnk ? 'Vehicle requirements: not fully verified.' : 'Vehicle requirements: met.';
+    var o = $('overall');
+    o.className = 'overall ' + cls;
+    o.textContent = '';
+    var s = document.createElement('strong'); s.textContent = title;
+    var p = document.createElement('span'); p.textContent = text + ' ' + vehicleSummary;
+    o.appendChild(s); o.appendChild(p);
+
+    renderList(all);
+  }
+
+  /* ---------- Wiring it all up ---------- */
+
+  // Re-run the checks whenever someone changes an answer.
+  ['qNew', 'qPersonal', 'qLoan', 'qIncome'].forEach(function (id) { $(id).addEventListener('change', evaluate); });
+  $('go').addEventListener('click', lookup);
+  // Pressing Enter in the VIN box works the same as clicking the button.
+  $('vin').addEventListener('keydown', function (e) { if (e.key === 'Enter') lookup(); });
+})();
+</script>
+</body>
+</html>
